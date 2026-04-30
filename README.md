@@ -12,7 +12,7 @@
 CsvMapper 是一个给 Android 项目用的 CSV 文件读写与对象映射框架。
 
 框架通过注解驱动的方式统一定义对象与 CSV 之间的映射关系，读写过程都会基于这些映射规则进行处理；在框架底层，
-基于 [有限状态机（FSM）](doc/ARCHITECTURE.md#二finite-state-machine有限状态机)实现的解析流程，并严格遵循了 RFC 4180 规范。
+基于 **[有限状态机（FSM）](doc/ARCHITECTURE.md#二finite-state-machine有限状态机)** 实现的解析流程，并严格遵循了 RFC 4180 规范。
 
 - **[RFC 4180 官方文档](https://datatracker.ietf.org/doc/html/rfc4180)**
 - **[RFC 4180（Apifox 中文文档）](https://docs.apifox.com/csv)**
