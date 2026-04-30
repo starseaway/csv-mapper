@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/main"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/color_FFF6F6F6">
+
+        <LinearLayout
+            android:id="@+id/ll_toolbar"
+            android:layout_width="0dp"
+            android:layout_height="?android:attr/actionBarSize"
+            android:background="@color/blue_primary"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/app_name"
+                android:textColor="@color/white"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_app_version"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/color_CCFFFFFF"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/nsv_container"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:fillViewport="true"
+            android:scrollbars="none"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/ll_toolbar">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout style="@style/Widget.Demo.CardContent">
+
+                    <LinearLayout
+                        style="@style/Widget.Demo.CardTitleRow"
+                        android:layout_marginBottom="12dp">
+
+                        <View
+                            android:layout_width="4dp"
+                            android:layout_height="18dp"
+                            android:layout_marginEnd="10dp"
+                            android:background="@color/blue_primary" />
+
+                        <TextView
+                            style="@style/Widget.Demo.CardTitle"
+                            android:text="@string/write_presentation" />
+
+                    </LinearLayout>
+
+                    <TextView
+                        style="@style/Widget.Demo.CardDesc"
+                        android:text="@string/write_presentation_des" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_write"
+                        style="@style/Widget.Demo.Button"
+                        android:text="@string/perform_writes"
+                        app:backgroundTint="@color/blue_primary" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    style="@style/Widget.Demo.CardContent"
+                    android:layout_marginTop="15dp">
+
+                    <LinearLayout
+                        style="@style/Widget.Demo.CardTitleRow"
+                        android:layout_marginBottom="12dp">
+
+                        <View
+                            android:layout_width="4dp"
+                            android:layout_height="18dp"
+                            android:layout_marginEnd="10dp"
+                            android:background="@color/flux_accent" />
+
+                        <TextView
+                            style="@style/Widget.Demo.CardTitle"
+                            android:text="@string/read_demo" />
+
+                    </LinearLayout>
+
+                    <TextView
+                        style="@style/Widget.Demo.CardDesc"
+                        android:text="@string/read_demo_des" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_read_by_class"
+                            style="@style/Widget.Demo.Button"
+                            android:layout_width="0dp"
+                            android:layout_marginEnd="8dp"
+                            android:layout_weight="1"
+                            android:text="@string/class_method"
+                            android:textSize="13sp"
+                            app:backgroundTint="@color/flux_accent" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_read_by_csv_type"
+                            style="@style/Widget.Demo.Button"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:text="@string/csv_type_method"
+                            android:textSize="13sp"
+                            app:backgroundTint="@color/blue_primary" />
+
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    style="@style/Widget.Demo.CardContent"
+                    android:layout_marginTop="15dp">
+
+                    <LinearLayout
+                        style="@style/Widget.Demo.CardTitleRow"
+                        android:layout_marginBottom="12dp">
+
+                        <View
+                            android:layout_width="4dp"
+                            android:layout_height="18dp"
+                            android:layout_marginEnd="10dp"
+                            android:background="@color/flux_warn" />
+
+                        <TextView
+                            style="@style/Widget.Demo.CardTitle"
+                            android:text="@string/read_demo_line_by_line" />
+
+                    </LinearLayout>
+
+                    <TextView
+                        style="@style/Widget.Demo.CardDesc"
+                        android:text="@string/read_demo_line_by_line_des" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_read_row"
+                        style="@style/Widget.Demo.Button"
+                        android:text="@string/read_line_by_line"
+                        app:backgroundTint="@color/flux_warn" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    style="@style/Widget.Demo.CardContent"
+                    android:layout_marginTop="15dp"
+                    android:background="@drawable/log_card_bg">
+
+                    <LinearLayout
+                        style="@style/Widget.Demo.CardTitleRow"
+                        android:layout_marginBottom="10dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:fontFamily="monospace"
+                            android:text="@string/output_logs"
+                            android:textColor="@color/white"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tv_reset"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:padding="4dp"
+                            android:text="@string/reset"
+                            android:textColor="@color/color_88FFFFFF"
+                            android:textSize="12sp" />
+
+                    </LinearLayout>
+
+                    <androidx.appcompat.widget.AppCompatTextView
+                        android:id="@+id/tv_log_info"
+                        android:layout_width="match_parent"
+                        android:layout_height="300dp"
+                        android:fontFamily="monospace"
+                        android:lineSpacingMultiplier="1.4"
+                        android:scrollbars="vertical"
+                        android:text="@string/wait_for_the_action"
+                        android:textColor="@color/flux_log_text"
+                        android:scrollbarThumbVertical="@drawable/scrollbar_thumb"
+                        android:textSize="@dimen/sp_10" />
+
+                </LinearLayout>
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</layout>

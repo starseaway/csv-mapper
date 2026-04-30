@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">CsvMapper</string>
+    <string name="reset">重置</string>
+    <string name="perform_writes">执行写入</string>
+    <string name="output_logs">输出日志</string>
+    <string name="wait_for_the_action">等待操作…</string>
+    <string name="write_presentation">写入演示</string>
+    <string name="write_presentation_des">将数条 UserModel 对象序列化写入 CSV 文件，并自动生成表头行</string>
+    <string name="class_method">Class 方式</string>
+    <string name="csv_type_method">CsvType 方式</string>
+    <string name="read_line_by_line">逐行读取</string>
+    <string name="read_demo_line_by_line">逐行读取演示</string>
+    <string name="read_demo_line_by_line_des">使用 CsvReader 迭代器逐行读取，适合大文件场景，避免 OOM</string>
+    <string name="read_demo">读取演示</string>
+    <string name="read_demo_des"><![CDATA[从 CSV 文件解析为 List<UserModel> 对象列表，支持两种调用方式]]></string>
+</resources>
