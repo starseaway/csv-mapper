@@ -73,11 +73,11 @@ maven { url 'https://jitpack.io' }
 ### 2. 添加依赖
 
 ```groovy
-implementation 'com.github.xinyi:csv-mapper:1.0.0'
+implementation 'com.github.starseaway:csv-mapper:1.0.0'
 ```
 
 ```kotlin
-implementation("com.github.xinyi:csv-mapper:1.0.0")
+implementation("com.github.starseaway:csv-mapper:1.0.0")
 ```
 
 ---
