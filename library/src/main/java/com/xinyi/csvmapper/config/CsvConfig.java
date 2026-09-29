@@ -34,9 +34,9 @@ public class CsvConfig {
     private final Charset charset;
 
     /**
-     * 是否跳过首行（表头行），默认为 false
+     * 表头模式，默认为 {@link HeaderMode#AUTO}
      */
-    private final boolean skipHeader;
+    private final HeaderMode headerMode;
 
     /**
      * 是否忽略字段首尾空白字符，默认为 false
@@ -53,7 +53,7 @@ public class CsvConfig {
         this.quoteChar = builder.quoteChar;
         this.escapeChar = builder.escapeChar;
         this.charset = builder.charset;
-        this.skipHeader = builder.skipHeader;
+        this.headerMode = builder.headerMode;
         this.trimWhitespace = builder.trimWhitespace;
         this.skipEmptyLines = builder.skipEmptyLines;
     }
@@ -74,8 +74,8 @@ public class CsvConfig {
         return charset;
     }
 
-    public boolean isSkipHeader() {
-        return skipHeader;
+    public HeaderMode getHeaderMode() {
+        return headerMode;
     }
 
     public boolean isTrimWhitespace() {
@@ -99,14 +99,29 @@ public class CsvConfig {
         private char quoteChar = '"';
         private char escapeChar = '\\';
         private Charset charset = StandardCharsets.UTF_8;
-        private boolean skipHeader = false;
+        private HeaderMode headerMode = HeaderMode.AUTO;
         private boolean trimWhitespace = false;
         private boolean skipEmptyLines = true;
 
+        public Builder() { }
+
         /**
-         * 返回当前 Builder 实例（子类覆盖此方法以支持链式调用时返回正确的子类型）
+         * 以已有配置为基础创建构建器
          *
-         * <p> 通过抽象 self() 方法代替强转，彻底消除泛型 Builder 中的 unchecked 警告 </p>
+         * @param config 基础配置
+         */
+        public Builder(CsvConfig config) {
+            this.delimiter = config.delimiter;
+            this.quoteChar = config.quoteChar;
+            this.escapeChar = config.escapeChar;
+            this.charset = config.charset;
+            this.headerMode = config.headerMode;
+            this.trimWhitespace = config.trimWhitespace;
+            this.skipEmptyLines = config.skipEmptyLines;
+        }
+
+        /**
+         * 返回当前构建器实例，便于链式调用
          */
         @SuppressWarnings("unchecked")
         protected T self() {
@@ -133,8 +148,8 @@ public class CsvConfig {
             return self();
         }
 
-        public T skipHeader(boolean skipHeader) {
-            this.skipHeader = skipHeader;
+        public T headerMode(HeaderMode headerMode) {
+            this.headerMode = headerMode;
             return self();
         }
 

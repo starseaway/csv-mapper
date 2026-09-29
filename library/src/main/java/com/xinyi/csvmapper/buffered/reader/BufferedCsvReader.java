@@ -1,6 +1,7 @@
 package com.xinyi.csvmapper.buffered.reader;
 
 import com.xinyi.csvmapper.config.CsvConfig;
+import com.xinyi.csvmapper.config.HeaderMode;
 import com.xinyi.csvmapper.model.CsvRow;
 
 import org.jetbrains.annotations.NotNull;
@@ -80,7 +81,7 @@ public class BufferedCsvReader implements CsvReader {
     @Nullable
     @Override
     public CsvRow readNextRow() throws IOException {
-        // 首次读取时，若配置了 skipHeader，先消费表头行
+        // 首次读取时，若首行为表头，先消费表头行
         if (!mHeaderInitialized) {
             initializeHeader();
         }
@@ -123,11 +124,11 @@ public class BufferedCsvReader implements CsvReader {
     /**
      * 初始化表头
      *
-     * <p> 若配置了 skipHeader，读取并解析第一行作为表头；否则标记为已初始化 </p>
+     * <p> 表头模式为 {@link HeaderMode#PRESENT} 时，读取并解析第一行作为表头；否则标记为已初始化 </p>
      */
     private void initializeHeader() throws IOException {
         mHeaderInitialized = true;
-        if (!mConfig.isSkipHeader()) {
+        if (mConfig.getHeaderMode() != HeaderMode.PRESENT) {
             return;
         }
         List<String> headerFields = parseNextRowFields();

@@ -224,9 +224,8 @@ List<UserModel> users = CsvMapper.parse(file, UserModel.class);
 CsvConfig config = new CsvConfig.Builder<>()
     .delimiter(';') // 分号分隔
     .charset(StandardCharsets.UTF_8) // UTF-8 编码
-    .skipHeader(true) // 跳过表头
+    .headerMode(HeaderMode.PRESENT) // 首行为表头（默认 AUTO：跟随行类型）
     .trimWhitespace(true) // 自动 trim 字段空白
-    .forceQuoteAll(true) // 所有字段强制加引号
     .build();
 
 List<UserModel> users = CsvMapper.parse(file, UserModel.class, config);

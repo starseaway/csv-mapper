@@ -21,11 +21,6 @@ public class CsvWriteConfig extends CsvConfig {
     private final boolean forceQuoteAll;
 
     /**
-     * 是否在写入前自动写出表头行
-     */
-    private final boolean writeHeader;
-
-    /**
      * 构造函数
      *
      * @param builder 写入构建器
@@ -34,7 +29,6 @@ public class CsvWriteConfig extends CsvConfig {
         super(builder);
         this.lineSeparator = builder.lineSeparator;
         this.forceQuoteAll = builder.forceQuoteAll;
-        this.writeHeader = builder.writeHeader;
     }
 
     public String getLineSeparator() {
@@ -43,10 +37,6 @@ public class CsvWriteConfig extends CsvConfig {
 
     public boolean isForceQuoteAll() {
         return forceQuoteAll;
-    }
-
-    public boolean isWriteHeader() {
-        return writeHeader;
     }
 
     /**
@@ -65,8 +55,6 @@ public class CsvWriteConfig extends CsvConfig {
         private String lineSeparator = System.lineSeparator();
         /// 是否强制所有字段加引号（默认：false）
         private boolean forceQuoteAll = false;
-        /// 是否写入表头（默认：false）
-        private boolean writeHeader = false;
 
         /**
          * 设置行分隔符
@@ -81,14 +69,6 @@ public class CsvWriteConfig extends CsvConfig {
          */
         public WriteBuilder forceQuoteAll(boolean forceQuoteAll) {
             this.forceQuoteAll = forceQuoteAll;
-            return this;
-        }
-
-        /**
-         * 设置是否写入表头
-         */
-        public WriteBuilder writeHeader(boolean writeHeader) {
-            this.writeHeader = writeHeader;
             return this;
         }
 

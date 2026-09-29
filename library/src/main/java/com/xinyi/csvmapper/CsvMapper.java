@@ -10,6 +10,7 @@ import com.xinyi.csvmapper.buffered.writer.BufferedCsvWriter;
 import com.xinyi.csvmapper.buffered.writer.CsvWriter;
 import com.xinyi.csvmapper.config.CsvConfig;
 import com.xinyi.csvmapper.config.CsvWriteConfig;
+import com.xinyi.csvmapper.config.HeaderMode;
 import com.xinyi.csvmapper.exception.CsvMappingException;
 import com.xinyi.csvmapper.mapper.CsvRowAdapter;
 import com.xinyi.csvmapper.utils.FileIO;
@@ -47,7 +48,7 @@ public final class CsvMapper {
      */
     @NotNull
     public static <T> List<T> parse(@NotNull File file, @NotNull CsvTypeToken<List<T>> csvTypeToken) throws IOException {
-        return parse(file, csvTypeToken, defaultParseConfig(listElementAdapter(csvTypeToken)));
+        return parse(file, csvTypeToken, CsvConfig.defaultConfig());
     }
 
     /**
@@ -76,7 +77,7 @@ public final class CsvMapper {
      */
     @NotNull
     public static <T> List<T> parse(@NotNull File file, @NotNull Class<T> targetClass) throws IOException {
-        return parse(file, targetClass, defaultParseConfig(CsvRowAdapters.get(targetClass)));
+        return parse(file, targetClass, CsvConfig.defaultConfig());
     }
 
     /**
@@ -104,7 +105,7 @@ public final class CsvMapper {
      */
     @NotNull
     public static <T> List<T> parse(@NotNull InputStream inputStream, @NotNull CsvTypeToken<List<T>> csvTypeToken) throws IOException {
-        return parse(inputStream, csvTypeToken, defaultParseConfig(listElementAdapter(csvTypeToken)));
+        return parse(inputStream, csvTypeToken, CsvConfig.defaultConfig());
     }
 
     /**
@@ -132,7 +133,7 @@ public final class CsvMapper {
      */
     @NotNull
     public static <T> List<T> parse(@NotNull InputStream inputStream, @NotNull Class<T> targetClass) throws IOException {
-        return parse(inputStream, targetClass, defaultParseConfig(CsvRowAdapters.get(targetClass)));
+        return parse(inputStream, targetClass, CsvConfig.defaultConfig());
     }
 
     /**
@@ -275,7 +276,7 @@ public final class CsvMapper {
      */
     @NotNull
     public static <T> CsvObjectReader<T> objectReader(@NotNull File file, @NotNull Class<T> targetClass) throws IOException {
-        return objectReader(file, targetClass, defaultParseConfig(CsvRowAdapters.get(targetClass)));
+        return objectReader(file, targetClass, CsvConfig.defaultConfig());
     }
 
     /**
@@ -290,7 +291,7 @@ public final class CsvMapper {
     @NotNull
     public static <T> CsvObjectReader<T> objectReader(@NotNull File file, @NotNull Class<T> targetClass, @NotNull CsvConfig config) throws IOException {
         CsvRowAdapter<T> rowAdapter = CsvRowAdapters.get(targetClass);
-        return new CsvObjectReader<>(reader(FileIO.inputStream(file), config), rowAdapter);
+        return new CsvObjectReader<>(reader(FileIO.inputStream(file), resolveHeaderMode(config, rowAdapter)), rowAdapter);
     }
 
     /**
@@ -302,7 +303,7 @@ public final class CsvMapper {
      */
     @NotNull
     public static <T> CsvObjectReader<T> objectReader(@NotNull InputStream inputStream, @NotNull Class<T> targetClass) {
-        return objectReader(inputStream, targetClass, defaultParseConfig(CsvRowAdapters.get(targetClass)));
+        return objectReader(inputStream, targetClass, CsvConfig.defaultConfig());
     }
 
     /**
@@ -315,7 +316,8 @@ public final class CsvMapper {
      */
     @NotNull
     public static <T> CsvObjectReader<T> objectReader(@NotNull InputStream inputStream, @NotNull Class<T> targetClass, @NotNull CsvConfig config) {
-        return new CsvObjectReader<>(reader(inputStream, config), CsvRowAdapters.get(targetClass));
+        CsvRowAdapter<T> rowAdapter = CsvRowAdapters.get(targetClass);
+        return new CsvObjectReader<>(reader(inputStream, resolveHeaderMode(config, rowAdapter)), rowAdapter);
     }
 
     /**
@@ -494,16 +496,21 @@ public final class CsvMapper {
     }
 
     /**
-     * 创建默认解析配置
+     * 解析表头模式
      *
-     * <p> 根据行适配器是否提供表头决定是否跳过首行。</p>
+     * <p> {@code AUTO} 模式会根据行适配器是否提供表头确定最终模式。</p>
      *
+     * @param config 解析配置
      * @param rowAdapter 行适配器
-     * @return 默认解析配置
+     * @return 确定后的解析配置
      */
     @NotNull
-    private static CsvConfig defaultParseConfig(@NotNull CsvRowAdapter<?> rowAdapter) {
-        return new CsvConfig.Builder<>().skipHeader(rowAdapter.header() != null).build();
+    private static CsvConfig resolveHeaderMode(@NotNull CsvConfig config, @NotNull CsvRowAdapter<?> rowAdapter) {
+        if (config.getHeaderMode() != HeaderMode.AUTO) {
+            return config;
+        }
+        HeaderMode headerMode = rowAdapter.header() != null ? HeaderMode.PRESENT : HeaderMode.ABSENT;
+        return new CsvConfig.Builder<>(config).headerMode(headerMode).build();
     }
 
     /**
@@ -516,7 +523,7 @@ public final class CsvMapper {
      */
     @NotNull
     private static <T> List<T> parseList(@NotNull InputStream inputStream, @NotNull CsvRowAdapter<T> rowAdapter, @NotNull CsvConfig config) throws IOException {
-        try (CsvObjectReader<T> objectReader = new CsvObjectReader<>(reader(inputStream, config), rowAdapter)) {
+        try (CsvObjectReader<T> objectReader = new CsvObjectReader<>(reader(inputStream, resolveHeaderMode(config, rowAdapter)), rowAdapter)) {
             return objectReader.readAll();
         }
     }
@@ -532,8 +539,9 @@ public final class CsvMapper {
      */
     private static <T> void serializeList(@NotNull OutputStream outputStream, @NotNull List<T> objects, @NotNull CsvRowAdapter<T> rowAdapter, @NotNull CsvWriteConfig config) throws IOException {
         try (CsvObjectWriter<T> objectWriter = new CsvObjectWriter<>(writer(outputStream, config), rowAdapter)) {
-            // 行适配器如果提供了表头，则先写入表头
-            objectWriter.writeHeader();
+            if (config.getHeaderMode() != HeaderMode.ABSENT) {
+                objectWriter.writeHeader();
+            }
             objectWriter.writeAll(objects);
         }
     }
