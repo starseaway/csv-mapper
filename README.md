@@ -4,7 +4,7 @@
   <img src="csv-mapper-logo.svg" width="500" alt="csv-mapper-logo">
 </div>
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-1.1.0-blue)
 ![License](https://img.shields.io/badge/license-Apache%202.0-green)
 ![API](https://img.shields.io/badge/API-19%2B-brightgreen)
 
@@ -50,6 +50,10 @@ CsvMapper 是一个给 Android 项目用的 CSV 文件读写与对象映射框�
 
 - 通过 `@CsvColumn` 实现对象自动映射，写入支持设置最大字符数和截断等格式控制。
 
+- 列表中的每个元素对应一行，元素既可以是注解对象，也可以是 `int[]`、`List<Integer>`、`String` 这类数组、集合或单值。
+
+- 同时支持文件和输入 / 输出流，Android 的 assets、`Uri` 可以直接读写。
+
 - 大文件场景下提供逐行迭代器，不必担心 OOM。
 
 - 可通过 `CsvFieldMapper` 接口接入自定义转换逻辑，反射元数据会在首次解析后缓存，同类型反射不会重复开销。
@@ -58,7 +62,11 @@ CsvMapper 是一个给 Android 项目用的 CSV 文件读写与对象映射框�
 
 ## 三、SDK 适用范围
 
-Min SDK 19（Android 4.4）及以上
+| 项目         | 要求                 |
+|------------|--------------------|
+| Min SDK    | 19（Android 4.4）及以上 |
+| JVM Target | 1.8                |
+| Kotlin     | 1.9+               |
 
 ---
 
@@ -73,11 +81,11 @@ maven { url 'https://jitpack.io' }
 ### 2. 添加依赖
 
 ```groovy
-implementation 'com.github.starseaway:csv-mapper:1.0.0'
+implementation 'com.github.starseaway:csv-mapper:1.1.0'
 ```
 
 ```kotlin
-implementation("com.github.starseaway:csv-mapper:1.0.0")
+implementation("com.github.starseaway:csv-mapper:1.1.0")
 ```
 
 ---
@@ -235,15 +243,105 @@ List<UserModel> users = CsvMapper.parse(file, UserModel.class, config);
 > 泛型类型令牌原理是通过匿名子类把泛型信息 “保存在字节码里”，再通过反射读取出来。
 > `CsvTypeToken` 与 Gson 的 `TypeToken`、Fastjson 的 `TypeReference` 原理完全一致。
 
-### 4. 逐行读取（大文件场景）
+### 4. 数组、集合与单值
+
+列表元素不是注解对象时，一个元素对应一行，按列的位置读写，默认没有表头：
+
+```java
+void testArrayRow() {
+    List<int[]> matrix = Arrays.asList(new int[]{1, 2, 3}, new int[]{4, 5, 6});
+    CsvMapper.serialize(file, matrix);
+    // 1,2,3
+    // 4,5,6
+
+    List<int[]> rows = CsvMapper.parse(file, int[].class);
+    List<List<Integer>> lists = CsvMapper.parse(file, new CsvTypeToken<List<List<Integer>>>() { });
+
+    // 单值：每行一列
+    List<String> names = CsvMapper.parse(file, String.class);
+}
+```
+
+- 数组和集合的元素支持 `String`、基本类型及其包装类型。
+- 集合接口 `List` 使用 `ArrayList`，`Set` 使用 `LinkedHashSet`；具体的集合类型需要有无参构造函数。
+- 集合的元素类型需要通过 `CsvTypeToken` 声明；无法确定时按 `String` 处理。
+
+其他类型可以注册自定义行适配器，自行决定一行如何与单元格互相转换：
+
+```java
+void testRegisterRowAdapter() {
+    CsvRowAdapters.register(Point.class, new CsvRowAdapter<Point>() {
+
+        @Override
+        public List<String> header() {
+            // 表头列名，返回 null 表示没有表头
+            return Arrays.asList("x", "y");
+        }
+
+        @Override
+        public List<String> toCells(Point point) {
+            return Arrays.asList(String.valueOf(point.x), String.valueOf(point.y));
+        }
+
+        @Override
+        public Point map(CsvRow row) {
+            return new Point(Integer.parseInt(row.get("x")), Integer.parseInt(row.get("y")));
+        }
+    });
+}
+```
+
+### 5. 流读写（assets / Uri）
+
+所有文件读写 API 都有对应的输入 / 输出流版本：
+
+```java
+void testStream() {
+    // 读取 assets
+    List<UserModel> users = CsvMapper.parse(context.getAssets().open("users.csv"), UserModel.class);
+
+    // 写入 Uri（例如通过系统文件选择器获得）
+    CsvMapper.serialize(context.getContentResolver().openOutputStream(uri), users);
+}
+```
+
+流的关闭规则：
+
+- `parse` / `serialize` 执行结束后会关闭传入的流。
+- `objectReader` / `objectWriter` / `reader` / `writer` 接管传入的流，关闭读写器时一并关闭。
+
+### 6. 表头模式
+
+通过 `CsvConfig` 的 `headerMode` 控制首行是否为表头，读取和写入共用这一配置：
+
+| 模式         | 读取                   | 写入                  |
+|------------|----------------------|---------------------|
+| `AUTO`（默认） | 注解对象读取表头；数组、集合、单值不读取 | 注解对象写出表头；数组、集合、单值不写 |
+| `PRESENT`  | 首行作为表头               | 写出行类型的表头            |
+| `ABSENT`   | 首行就是数据               | 不写表头                |
+
+例如读取一个带表头的数字表格：
+
+```java
+void testHeaderMode() {
+    CsvConfig config = new CsvConfig.Builder<>().headerMode(HeaderMode.PRESENT).build();
+    List<int[]> rows = CsvMapper.parse(file, int[].class, config);
+}
+```
+
+> 底层读取器 `CsvMapper.reader()` 没有行类型，`AUTO` 按没有表头处理。
+> 需要按列名取值或调用 `getHeader()` 时，请显式指定 `HeaderMode.PRESENT`。
+
+### 7. 逐行读取（大文件场景）
 
 大文件不要用 `parse()` 一次性加载，建议用迭代器逐行处理：
 
 ```java
 void testReadNextLine() {
-    try (CsvReader reader = CsvMapper.reader(file)) {
-        // 手动读取表头行
-        CsvRow header = reader.readNextRow();
+    CsvConfig config = new CsvConfig.Builder<>().headerMode(HeaderMode.PRESENT).build();
+    try (CsvReader reader = CsvMapper.reader(file, config)) {
+        // 首行已作为表头读取
+        List<String> header = reader.getHeader();
 
         // 逐行读取数据行
         CsvRow row;
@@ -256,7 +354,9 @@ void testReadNextLine() {
 }
 ```
 
-### 5. 自定义字段类型转换器
+也可以用对象读取器逐条映射为对象，见下方 [底层 API](#9-底层-api)。
+
+### 8. 自定义字段类型转换器
 
 内置支持常见基础类型，其他类型可以通过实现 `CsvFieldMapper` 接口：
 
@@ -283,7 +383,7 @@ public class DateFieldMapper implements CsvFieldMapper<Date> {
 private Date createdAt;
 ```
 
-### 6. 底层 API
+### 9. 底层 API
 
 需要精细控制时，可以直接操作底层读写器：
 
@@ -301,26 +401,18 @@ void testCsvMapper() {
         writer.writeRow("1", "张三", "24");
     } // catch
 
-    // 注解驱动读取器（逐条处理）
-    try (AnnotationCsvReader<UserModel> reader = CsvMapper.objectReader(file, UserModel.class)) {
+    // 对象读取器（逐条读取）
+    try (CsvObjectReader<UserModel> reader = CsvMapper.objectReader(file, UserModel.class)) {
         UserModel user;
         while ((user = reader.readNext()) != null) {
             LogUtil.d("name = " + user);
         }
     } // catch
 
-    // 注解驱动写入器
-    try (AnnotationCsvWriter<UserModel> writer = CsvMapper.objectWriter(file, UserModel.class)) {
+    // 对象写入器（逐条写入）
+    try (CsvObjectWriter<UserModel> writer = CsvMapper.objectWriter(file, UserModel.class)) {
         writer.writeHeader();
         writer.writeAll(users);
     } // catch
 }
 ```
-
----
-
-## 六、版本变更记录
-
-### V1.0.0 (2026-04-30)
-
-- 正式开源发布，首个版本主要包含 CSV 读写、注解对象映射、泛型类型令牌等核心能力。
