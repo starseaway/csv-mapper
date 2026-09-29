@@ -179,7 +179,7 @@ public class MainActivity extends BaseViewBindingActivity<ActivityMainBinding> {
             return;
         }
         try {
-            List<UserModel> users = CsvMapper.parse(mDemoFile, new CsvTypeToken<List<UserModel>>() { });
+            List<UserModel> users = CsvMapper.parse(mDemoFile, new CsvTypeToken<>() { });
             for (UserModel user : users) {
                 appendLog(mColorDim, user.toString());
             }

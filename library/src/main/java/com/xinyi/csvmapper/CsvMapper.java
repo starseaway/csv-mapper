@@ -1,31 +1,34 @@
 package com.xinyi.csvmapper;
 
-import com.xinyi.csvmapper.bind.AnnotationCsvReader;
-import com.xinyi.csvmapper.bind.AnnotationCsvWriter;
+import com.xinyi.csvmapper.bind.CsvObjectReader;
+import com.xinyi.csvmapper.bind.CsvObjectWriter;
 import com.xinyi.csvmapper.bind.CsvTypeToken;
+import com.xinyi.csvmapper.bind.adapter.CsvRowAdapters;
+import com.xinyi.csvmapper.buffered.reader.BufferedCsvReader;
+import com.xinyi.csvmapper.buffered.reader.CsvReader;
+import com.xinyi.csvmapper.buffered.writer.BufferedCsvWriter;
+import com.xinyi.csvmapper.buffered.writer.CsvWriter;
 import com.xinyi.csvmapper.config.CsvConfig;
 import com.xinyi.csvmapper.config.CsvWriteConfig;
 import com.xinyi.csvmapper.exception.CsvMappingException;
-import com.xinyi.csvmapper.buffered.reader.BufferedCsvReader;
-import com.xinyi.csvmapper.buffered.reader.CsvReader;
+import com.xinyi.csvmapper.mapper.CsvRowAdapter;
 import com.xinyi.csvmapper.utils.FileIO;
-import com.xinyi.csvmapper.buffered.writer.BufferedCsvWriter;
-import com.xinyi.csvmapper.buffered.writer.CsvWriter;
 
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Type;
 import java.util.List;
 
 /**
- * CSV 对象映射框架统一入口门面类
+ * CSV 映射入口
  *
- * <p> 入口类主要提供创建 CSV 读取器、写入器及注解驱动对象映射器的工厂方法 </p>
+ * <p> 提供 CSV 解析、序列化以及底层读写器的创建方法，数据来源支持文件和流。</p>
+ *
+ * <p> 列表中的每个元素对应一行，支持注解对象、数组、集合和单值，详见 {@link CsvRowAdapters}。</p>
  *
  * @author 新一
  * @date 2026/4/23 19:42
@@ -35,77 +38,125 @@ public final class CsvMapper {
     private CsvMapper() { }
 
     /**
-     * 使用泛型类型令牌解析 CSV 文件为对象列表（使用默认配置，自动启用表头解析）
+     * 解析 CSV 文件
      *
      * @param file CSV 文件
-     * @param csvTypeToken 泛型类型令牌，如 {@code new CsvTypeToken<List<UserModel>>() {}}
-     * @throws IOException 读取过程中发生 IO 错误
-     * @throws CsvMappingException 映射过程中发生类型转换错误
+     * @param csvTypeToken 目标列表类型
+     * @throws IOException 读取失败时抛出
+     * @throws CsvMappingException 类型映射失败时抛出
      */
     @NotNull
-    public static <T> T parse(@NotNull File file, @NotNull CsvTypeToken<T> csvTypeToken) throws IOException {
-        return parse(file, csvTypeToken, new CsvConfig.Builder<>().skipHeader(true).build());
+    public static <T> List<T> parse(@NotNull File file, @NotNull CsvTypeToken<List<T>> csvTypeToken) throws IOException {
+        return parse(file, csvTypeToken, defaultParseConfig(listElementAdapter(csvTypeToken)));
     }
 
     /**
-     * 使用泛型类型令牌解析 CSV 文件为对象列表
+     * 解析 CSV 文件
      *
      * @param file CSV 文件
-     * @param csvTypeToken 泛型类型令牌
+     * @param csvTypeToken 目标列表类型
      * @param config 解析配置
-     * @throws IOException 读取过程中发生 IO 错误
-     * @throws CsvMappingException 映射过程中发生类型转换错误
+     * @throws IOException 读取失败时抛出
+     * @throws CsvMappingException 类型映射失败时抛出
      */
     @SuppressWarnings("unchecked")
     @NotNull
-    public static <T> T parse(@NotNull File file, @NotNull CsvTypeToken<T> csvTypeToken, @NotNull CsvConfig config) throws IOException {
-        Class<?> elementClass = csvTypeToken.getListElementClass();
-        if (elementClass == null) {
-            throw new CsvMappingException("Cannot resolve list element type from CsvTypeToken, use parseFirst() for single object");
-        }
-        CsvReader csvReader = reader(FileIO.inputStream(file), config);
-        AnnotationCsvReader<?> annotationReader = new AnnotationCsvReader<>(csvReader, elementClass);
-        return (T) annotationReader.readAll();
+    public static <T> List<T> parse(@NotNull File file, @NotNull CsvTypeToken<List<T>> csvTypeToken, @NotNull CsvConfig config) throws IOException {
+        CsvRowAdapter<T> rowAdapter = (CsvRowAdapter<T>) listElementAdapter(csvTypeToken);
+        return parseList(FileIO.inputStream(file), rowAdapter, config);
     }
 
     /**
-     * 解析 CSV 文件为指定类型的对象列表（使用默认配置，自动启用表头解析）
-     *
+     * 解析 CSV 文件
+     * 
      * @param file CSV 文件
-     * @param targetClass 目标对象类型（需有 public 无参构造函数）
-     * @throws IOException 读取过程中发生 IO 错误
+     * @param targetClass 目标类型
+     * @throws IOException 读取失败时抛出
+     * @throws CsvMappingException 类型映射失败时抛出
      */
     @NotNull
     public static <T> List<T> parse(@NotNull File file, @NotNull Class<T> targetClass) throws IOException {
-        return parse(file, targetClass, new CsvConfig.Builder<>().skipHeader(true).build());
+        return parse(file, targetClass, defaultParseConfig(CsvRowAdapters.get(targetClass)));
     }
 
     /**
-     * 解析 CSV 文件为指定类型的对象列表
+     * 解析 CSV 文件
      *
      * @param file CSV 文件
-     * @param targetClass 目标对象类型
+     * @param targetClass 目标类型
      * @param config 解析配置
-     * @throws IOException 读取过程中发生 IO 错误
+     * @throws IOException 读取失败时抛出
+     * @throws CsvMappingException 类型映射失败时抛出
      */
     @NotNull
     public static <T> List<T> parse(@NotNull File file, @NotNull Class<T> targetClass, @NotNull CsvConfig config) throws IOException {
-        CsvReader csvReader = reader(new FileInputStream(file), config);
-        try (AnnotationCsvReader<T> annotationReader = new AnnotationCsvReader<>(csvReader, targetClass)) {
-            return annotationReader.readAll();
-        }
+        CsvRowAdapter<T> rowAdapter = CsvRowAdapters.get(targetClass);
+        return parseList(FileIO.inputStream(file), rowAdapter, config);
     }
 
     /**
-     * 将对象列表序列化为 CSV 文件（使用默认写入配置，自动写出表头）
+     * 解析 CSV 输入流
      *
-     * <p> 元素类型通过泛型类型令牌明确指定，与 {@link #parse(File, CsvTypeToken)} 完全对称 </p>
+     * @param inputStream 输入流
+     * @param csvTypeToken 目标列表类型
+     * @throws IOException 读取失败时抛出
+     * @throws CsvMappingException 类型映射失败时抛出
+     */
+    @NotNull
+    public static <T> List<T> parse(@NotNull InputStream inputStream, @NotNull CsvTypeToken<List<T>> csvTypeToken) throws IOException {
+        return parse(inputStream, csvTypeToken, defaultParseConfig(listElementAdapter(csvTypeToken)));
+    }
+
+    /**
+     * 解析 CSV 输入流
+     *
+     * @param inputStream 输入流
+     * @param csvTypeToken 目标列表类型
+     * @param config 解析配置
+     * @throws IOException 读取失败时抛出
+     * @throws CsvMappingException 类型映射失败时抛出
+     */
+    @SuppressWarnings("unchecked")
+    @NotNull
+    public static <T> List<T> parse(@NotNull InputStream inputStream, @NotNull CsvTypeToken<List<T>> csvTypeToken, @NotNull CsvConfig config) throws IOException {
+        return parseList(inputStream, (CsvRowAdapter<T>) listElementAdapter(csvTypeToken), config);
+    }
+
+    /**
+     * 解析 CSV 输入流
+     * 
+     * @param inputStream 输入流
+     * @param targetClass 目标类型
+     * @throws IOException 读取失败时抛出
+     * @throws CsvMappingException 类型映射失败时抛出
+     */
+    @NotNull
+    public static <T> List<T> parse(@NotNull InputStream inputStream, @NotNull Class<T> targetClass) throws IOException {
+        return parse(inputStream, targetClass, defaultParseConfig(CsvRowAdapters.get(targetClass)));
+    }
+
+    /**
+     * 解析 CSV 输入流
+     *
+     * @param inputStream 输入流
+     * @param targetClass 目标类型
+     * @param config 解析配置
+     * @throws IOException 读取失败时抛出
+     * @throws CsvMappingException 类型映射失败时抛出
+     */
+    @NotNull
+    public static <T> List<T> parse(@NotNull InputStream inputStream, @NotNull Class<T> targetClass, @NotNull CsvConfig config) throws IOException {
+        return parseList(inputStream, CsvRowAdapters.get(targetClass), config);
+    }
+
+    /**
+     * 将对象列表序列化为 CSV 文件
      *
      * @param file 目标 CSV 文件
-     * @param objects 源对象列表
-     * @param csvTypeToken 泛型类型令牌，用于明确指定元素类型
-     * @throws IOException 写入过程中发生 IO 错误
-     * @throws CsvMappingException 类型解析失败时抛出
+     * @param objects 对象列表
+     * @param csvTypeToken 目标列表类型
+     * @throws IOException 写入失败时抛出
+     * @throws CsvMappingException 类型映射失败时抛出
      */
     public static <T> void serialize(@NotNull File file, @NotNull List<T> objects, @NotNull CsvTypeToken<List<T>> csvTypeToken) throws IOException {
         serialize(file, objects, csvTypeToken, CsvWriteConfig.defaultConfig());
@@ -115,36 +166,27 @@ public final class CsvMapper {
      * 将对象列表序列化为 CSV 文件
      *
      * @param file 目标 CSV 文件
-     * @param objects 源对象列表
-     * @param csvTypeToken 泛型类型令牌
+     * @param objects 对象列表
+     * @param csvTypeToken 目标列表类型
      * @param config 写入配置
-     * @throws IOException 写入过程中发生 IO 错误
-     * @throws CsvMappingException 类型解析失败时抛出
+     * @throws IOException 写入失败时抛出
+     * @throws CsvMappingException 类型映射失败时抛出
      */
     @SuppressWarnings("unchecked")
     public static <T> void serialize(@NotNull File file, @NotNull List<T> objects, @NotNull CsvTypeToken<List<T>> csvTypeToken, @NotNull CsvWriteConfig config) throws IOException {
-        Class<T> elementClass = (Class<T>) csvTypeToken.getListElementClass();
-        if (elementClass == null) {
-            throw new CsvMappingException("Cannot resolve list element type from CsvType");
-        }
-        CsvWriter csvWriter = writer(FileIO.outputStream(file), config);
-        try (AnnotationCsvWriter<T> annotationWriter = new AnnotationCsvWriter<>(csvWriter, elementClass)) {
-            annotationWriter.writeHeader();
-            annotationWriter.writeAll(objects);
-        }
+        CsvRowAdapter<T> rowAdapter = (CsvRowAdapter<T>) listElementAdapter(csvTypeToken);
+        serializeList(FileIO.outputStream(file), objects, rowAdapter, config);
     }
 
     /**
-     * 将对象列表序列化为 CSV 文件（使用默认写入配置，自动写出表头）
+     * 将对象列表序列化为 CSV 文件
      *
-     * <p> 元素类型从列表第一个元素的运行时类型推断，列表不能为空。
-     * 若存在多态场景（列表元素为子类实例但需按父类注解序列化），
-     * 请改用 {@link #serialize(File, List, CsvTypeToken)} 显式指定类型 </p>
+     * <p> 元素类型从第一个元素的运行时类型推断，因此列表不能为空。</p>
      *
      * @param file 目标 CSV 文件
-     * @param objects 源对象列表，不能为空
-     * @throws IOException 写入过程中发生 IO 错误
-     * @throws CsvMappingException 列表为空时抛出
+     * @param objects 对象列表
+     * @throws IOException 写入失败时抛出
+     * @throws CsvMappingException 列表为空或类型映射失败时抛出
      */
     public static <T> void serialize(@NotNull File file, @NotNull List<T> objects) throws IOException {
         serialize(file, objects, CsvWriteConfig.defaultConfig());
@@ -153,31 +195,187 @@ public final class CsvMapper {
     /**
      * 将对象列表序列化为 CSV 文件
      *
+     * <p> 元素类型从第一个元素的运行时类型推断，因此列表不能为空。</p>
+     *
      * @param file 目标 CSV 文件
-     * @param objects 源对象列表，不能为空
+     * @param objects 对象列表
      * @param config 写入配置
-     * @throws IOException 写入过程中发生 IO 错误
-     * @throws CsvMappingException 列表为空时抛出
+     * @throws IOException 写入失败时抛出
+     * @throws CsvMappingException 列表为空或类型映射失败时抛出
      */
-    @SuppressWarnings("unchecked")
     public static <T> void serialize(@NotNull File file, @NotNull List<T> objects, @NotNull CsvWriteConfig config) throws IOException {
-        if (objects.isEmpty()) {
-            throw new CsvMappingException("Cannot serialize empty list: element type is unknown");
-        }
-        // 从第一个元素的运行时类型推断
-        Class<T> elementClass = (Class<T>) objects.get(0).getClass();
-        CsvWriter csvWriter = writer(new FileOutputStream(file), config);
-        try (AnnotationCsvWriter<T> annotationWriter = new AnnotationCsvWriter<>(csvWriter, elementClass)) {
-            annotationWriter.writeHeader();
-            annotationWriter.writeAll(objects);
-        }
+        CsvRowAdapter<T> rowAdapter = inferElementAdapter(objects);
+        serializeList(FileIO.outputStream(file), objects, rowAdapter, config);
     }
 
     /**
-     * 创建 CSV 读取器（使用默认配置）
+     * 将对象列表序列化到输出流
+     *
+     * @param outputStream 输出流
+     * @param objects 对象列表
+     * @param csvTypeToken 目标列表类型
+     * @throws IOException 写入失败时抛出
+     * @throws CsvMappingException 类型映射失败时抛出
+     */
+    public static <T> void serialize(@NotNull OutputStream outputStream, @NotNull List<T> objects, @NotNull CsvTypeToken<List<T>> csvTypeToken) throws IOException {
+        serialize(outputStream, objects, csvTypeToken, CsvWriteConfig.defaultConfig());
+    }
+
+    /**
+     * 将对象列表序列化到输出流
+     *
+     * @param outputStream 输出流
+     * @param objects 对象列表
+     * @param csvTypeToken 目标列表类型
+     * @param config 写入配置
+     * @throws IOException 写入失败时抛出
+     * @throws CsvMappingException 类型映射失败时抛出
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> void serialize(@NotNull OutputStream outputStream, @NotNull List<T> objects, @NotNull CsvTypeToken<List<T>> csvTypeToken, @NotNull CsvWriteConfig config) throws IOException {
+        serializeList(outputStream, objects, (CsvRowAdapter<T>) listElementAdapter(csvTypeToken), config);
+    }
+
+    /**
+     * 将对象列表序列化到输出流
+     *
+     * <p> 元素类型从第一个元素的运行时类型推断，因此列表不能为空。</p>
+     *
+     * @param outputStream 输出流
+     * @param objects 对象列表
+     * @throws IOException 写入失败时抛出
+     * @throws CsvMappingException 列表为空或类型映射失败时抛出
+     */
+    public static <T> void serialize(@NotNull OutputStream outputStream, @NotNull List<T> objects) throws IOException {
+        serialize(outputStream, objects, CsvWriteConfig.defaultConfig());
+    }
+
+    /**
+     * 将对象列表序列化到输出流
+     *
+     * <p> 元素类型从第一个元素的运行时类型推断，因此列表不能为空。</p>
+     *
+     * @param outputStream 输出流
+     * @param objects 对象列表
+     * @param config 写入配置
+     * @throws IOException 写入失败时抛出
+     * @throws CsvMappingException 列表为空或类型映射失败时抛出
+     */
+    public static <T> void serialize(@NotNull OutputStream outputStream, @NotNull List<T> objects, @NotNull CsvWriteConfig config) throws IOException {
+        serializeList(outputStream, objects, inferElementAdapter(objects), config);
+    }
+
+    /**
+     * 创建对象读取器
+     * 
+     * @param file CSV 文件
+     * @param targetClass 目标类型
+     * @throws IOException 文件无法读取时抛出
+     * @throws CsvMappingException 类型映射失败时抛出
+     */
+    @NotNull
+    public static <T> CsvObjectReader<T> objectReader(@NotNull File file, @NotNull Class<T> targetClass) throws IOException {
+        return objectReader(file, targetClass, defaultParseConfig(CsvRowAdapters.get(targetClass)));
+    }
+
+    /**
+     * 创建对象读取器
      *
      * @param file CSV 文件
-     * @throws IOException 文件不存在或无法读取时抛出
+     * @param targetClass 目标类型
+     * @param config 解析配置
+     * @throws IOException 文件无法读取时抛出
+     * @throws CsvMappingException 类型映射失败时抛出
+     */
+    @NotNull
+    public static <T> CsvObjectReader<T> objectReader(@NotNull File file, @NotNull Class<T> targetClass, @NotNull CsvConfig config) throws IOException {
+        CsvRowAdapter<T> rowAdapter = CsvRowAdapters.get(targetClass);
+        return new CsvObjectReader<>(reader(FileIO.inputStream(file), config), rowAdapter);
+    }
+
+    /**
+     * 创建对象读取器
+     * 
+     * @param inputStream 输入流
+     * @param targetClass 目标类型
+     * @throws CsvMappingException 类型映射失败时抛出
+     */
+    @NotNull
+    public static <T> CsvObjectReader<T> objectReader(@NotNull InputStream inputStream, @NotNull Class<T> targetClass) {
+        return objectReader(inputStream, targetClass, defaultParseConfig(CsvRowAdapters.get(targetClass)));
+    }
+
+    /**
+     * 创建对象读取器
+     *
+     * @param inputStream 输入流
+     * @param targetClass 目标类型
+     * @param config 解析配置
+     * @throws CsvMappingException 类型映射失败时抛出
+     */
+    @NotNull
+    public static <T> CsvObjectReader<T> objectReader(@NotNull InputStream inputStream, @NotNull Class<T> targetClass, @NotNull CsvConfig config) {
+        return new CsvObjectReader<>(reader(inputStream, config), CsvRowAdapters.get(targetClass));
+    }
+
+    /**
+     * 创建对象写入器
+     *
+     * @param file 目标文件
+     * @param sourceClass 源对象类型
+     * @throws IOException 文件无法创建时抛出
+     * @throws CsvMappingException 类型映射失败时抛出
+     */
+    @NotNull
+    public static <T> CsvObjectWriter<T> objectWriter(@NotNull File file, @NotNull Class<T> sourceClass) throws IOException {
+        return objectWriter(file, sourceClass, CsvWriteConfig.defaultConfig());
+    }
+
+    /**
+     * 创建对象写入器
+     *
+     * @param file 目标文件
+     * @param sourceClass 源对象类型
+     * @param config 写入配置
+     * @throws IOException 文件无法创建时抛出
+     * @throws CsvMappingException 类型映射失败时抛出
+     */
+    @NotNull
+    public static <T> CsvObjectWriter<T> objectWriter(@NotNull File file, @NotNull Class<T> sourceClass, @NotNull CsvWriteConfig config) throws IOException {
+        CsvRowAdapter<T> rowAdapter = CsvRowAdapters.get(sourceClass);
+        return new CsvObjectWriter<>(writer(FileIO.outputStream(file), config), rowAdapter);
+    }
+
+    /**
+     * 创建对象写入器
+     *
+     * @param outputStream 输出流
+     * @param sourceClass 源对象类型
+     * @throws CsvMappingException 类型映射失败时抛出
+     */
+    @NotNull
+    public static <T> CsvObjectWriter<T> objectWriter(@NotNull OutputStream outputStream, @NotNull Class<T> sourceClass) {
+        return objectWriter(outputStream, sourceClass, CsvWriteConfig.defaultConfig());
+    }
+
+    /**
+     * 创建对象写入器
+     *
+     * @param outputStream 输出流
+     * @param sourceClass 源对象类型
+     * @param config 写入配置
+     * @throws CsvMappingException 类型映射失败时抛出
+     */
+    @NotNull
+    public static <T> CsvObjectWriter<T> objectWriter(@NotNull OutputStream outputStream, @NotNull Class<T> sourceClass, @NotNull CsvWriteConfig config) {
+        return new CsvObjectWriter<>(writer(outputStream, config), CsvRowAdapters.get(sourceClass));
+    }
+
+    /**
+     * 创建 CSV 读取器
+     *
+     * @param file CSV 文件
+     * @throws IOException 文件无法读取时抛出
      */
     @NotNull
     public static CsvReader reader(@NotNull File file) throws IOException {
@@ -189,11 +387,21 @@ public final class CsvMapper {
      *
      * @param file CSV 文件
      * @param config 解析配置
-     * @throws IOException 文件不存在或无法读取时抛出
+     * @throws IOException 文件无法读取时抛出
      */
     @NotNull
     public static CsvReader reader(@NotNull File file, @NotNull CsvConfig config) throws IOException {
-        return reader(new FileInputStream(file), config);
+        return reader(FileIO.inputStream(file), config);
+    }
+
+    /**
+     * 创建 CSV 读取器
+     *
+     * @param inputStream 输入流
+     */
+    @NotNull
+    public static CsvReader reader(@NotNull InputStream inputStream) {
+        return reader(inputStream, CsvConfig.defaultConfig());
     }
 
     /**
@@ -208,10 +416,10 @@ public final class CsvMapper {
     }
 
     /**
-     * 创建 CSV 写入器（使用默认写入配置）
+     * 创建 CSV 写入器
      *
-     * @param file 目标 CSV 文件
-     * @throws IOException 文件无法创建或写入时抛出
+     * @param file 目标文件
+     * @throws IOException 文件无法创建时抛出
      */
     @NotNull
     public static CsvWriter writer(@NotNull File file) throws IOException {
@@ -221,13 +429,23 @@ public final class CsvMapper {
     /**
      * 创建 CSV 写入器
      *
-     * @param file 目标 CSV 文件
+     * @param file 目标文件
      * @param config 写入配置
-     * @throws IOException 文件无法创建或写入时抛出
+     * @throws IOException 文件无法创建时抛出
      */
     @NotNull
     public static CsvWriter writer(@NotNull File file, @NotNull CsvWriteConfig config) throws IOException {
         return writer(FileIO.outputStream(file), config);
+    }
+
+    /**
+     * 创建 CSV 写入器
+     *
+     * @param outputStream 输出流
+     */
+    @NotNull
+    public static CsvWriter writer(@NotNull OutputStream outputStream) {
+        return writer(outputStream, CsvWriteConfig.defaultConfig());
     }
 
     /**
@@ -242,57 +460,81 @@ public final class CsvMapper {
     }
 
     /**
-     * 创建注解驱动的对象读取器（使用默认配置，自动启用表头解析）
+     * 获取列表元素的行适配器
      *
-     * @param file CSV 文件
-     * @param targetClass 目标对象类型（需有 public 无参构造函数）
-     * @throws IOException 文件不存在或无法读取时抛出
+     * @param csvTypeToken 列表类型令牌
+     * @throws CsvMappingException 不是 List 或无法确定元素类型时抛出
      */
     @NotNull
-    public static <T> AnnotationCsvReader<T> objectReader(@NotNull File file, @NotNull Class<T> targetClass) throws IOException {
-        CsvConfig config = new CsvConfig.Builder<>().skipHeader(true).build();
-        return objectReader(file, targetClass, config);
+    private static CsvRowAdapter<?> listElementAdapter(@NotNull CsvTypeToken<?> csvTypeToken) {
+        Type elementType = csvTypeToken.getListElementType();
+        if (elementType == null) {
+            throw new CsvMappingException("Cannot resolve list element type from CsvTypeToken: " + csvTypeToken.getType());
+        }
+        return CsvRowAdapters.get(elementType);
     }
 
     /**
-     * 创建注解驱动的对象读取器
+     * 按第一个元素的运行时类型获取行适配器
      *
-     * @param file CSV 文件
-     * @param targetClass 目标对象类型
+     * @param objects 对象列表
+     * @throws CsvMappingException 列表为空、首个元素为 null 或类型映射失败时抛出
+     */
+    @SuppressWarnings("unchecked")
+    @NotNull
+    private static <T> CsvRowAdapter<T> inferElementAdapter(@NotNull List<T> objects) {
+        if (objects.isEmpty()) {
+            throw new CsvMappingException("Cannot serialize empty list: element type is unknown");
+        }
+        T first = objects.get(0);
+        if (first == null) {
+            throw new CsvMappingException("Cannot serialize list whose first element is null: element type is unknown");
+        }
+        return CsvRowAdapters.get((Class<T>) first.getClass());
+    }
+
+    /**
+     * 创建默认解析配置
+     *
+     * <p> 根据行适配器是否提供表头决定是否跳过首行。</p>
+     *
+     * @param rowAdapter 行适配器
+     * @return 默认解析配置
+     */
+    @NotNull
+    private static CsvConfig defaultParseConfig(@NotNull CsvRowAdapter<?> rowAdapter) {
+        return new CsvConfig.Builder<>().skipHeader(rowAdapter.header() != null).build();
+    }
+
+    /**
+     * 解析输入流并关闭
+     *
+     * @param inputStream 输入流
+     * @param rowAdapter 行适配器
      * @param config 解析配置
-     * @throws IOException 文件不存在或无法读取时抛出
+     * @throws IOException 读取失败时抛出
      */
     @NotNull
-    public static <T> AnnotationCsvReader<T> objectReader(@NotNull File file, @NotNull Class<T> targetClass, @NotNull CsvConfig config) throws IOException {
-        CsvReader csvReader = reader(new FileInputStream(file), config);
-        return new AnnotationCsvReader<>(csvReader, targetClass);
+    private static <T> List<T> parseList(@NotNull InputStream inputStream, @NotNull CsvRowAdapter<T> rowAdapter, @NotNull CsvConfig config) throws IOException {
+        try (CsvObjectReader<T> objectReader = new CsvObjectReader<>(reader(inputStream, config), rowAdapter)) {
+            return objectReader.readAll();
+        }
     }
 
     /**
-     * 创建注解驱动的对象写入器（使用默认写入配置）
+     * 写入对象列表并关闭输出流
      *
-     * @param file 目标 CSV 文件
-     * @param sourceClass 源对象类型
-     * @return {@link AnnotationCsvWriter}
-     * @throws IOException 文件无法创建或写入时抛出
-     */
-    @NotNull
-    public static <T> AnnotationCsvWriter<T> objectWriter(@NotNull File file, @NotNull Class<T> sourceClass) throws IOException {
-        return objectWriter(file, sourceClass, CsvWriteConfig.defaultConfig());
-    }
-
-    /**
-     * 创建注解驱动的对象写入器
-     *
-     * @param file 目标 CSV 文件
-     * @param sourceClass 源对象类型
+     * @param outputStream 输出流
+     * @param objects 对象列表
+     * @param rowAdapter 行适配器
      * @param config 写入配置
-     * @return {@link AnnotationCsvWriter}
-     * @throws IOException 文件无法创建或写入时抛出
+     * @throws IOException 写入失败时抛出
      */
-    @NotNull
-    public static <T> AnnotationCsvWriter<T> objectWriter(@NotNull File file, @NotNull Class<T> sourceClass, @NotNull CsvWriteConfig config) throws IOException {
-        CsvWriter csvWriter = writer(FileIO.outputStream(file), config);
-        return new AnnotationCsvWriter<>(csvWriter, sourceClass);
+    private static <T> void serializeList(@NotNull OutputStream outputStream, @NotNull List<T> objects, @NotNull CsvRowAdapter<T> rowAdapter, @NotNull CsvWriteConfig config) throws IOException {
+        try (CsvObjectWriter<T> objectWriter = new CsvObjectWriter<>(writer(outputStream, config), rowAdapter)) {
+            // 行适配器如果提供了表头，则先写入表头
+            objectWriter.writeHeader();
+            objectWriter.writeAll(objects);
+        }
     }
 }

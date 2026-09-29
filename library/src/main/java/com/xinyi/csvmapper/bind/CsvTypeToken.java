@@ -1,7 +1,12 @@
 package com.xinyi.csvmapper.bind;
 
+import com.xinyi.csvmapper.utils.Types;
+
+import org.jetbrains.annotations.Nullable;
+
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -22,6 +27,7 @@ import java.util.List;
  * </p>
  *
  * @param <T> 目标类型
+ *
  * @author 新一
  * @date 2026/4/23 18:23
  */
@@ -33,7 +39,7 @@ public abstract class CsvTypeToken<T> {
     private final Type mType;
 
     /**
-     * 若泛型参数为具体类（非参数化类型），则直接持有该 Class
+     * 原始类型
      */
     private final Class<T> mRawClass;
 
@@ -46,7 +52,6 @@ public abstract class CsvTypeToken<T> {
      */
     @SuppressWarnings("unchecked")
     protected CsvTypeToken() {
-        // 通过匿名子类的父类泛型参数拿到完整 Type
         Type superClass = getClass().getGenericSuperclass();
 
         if (!(superClass instanceof ParameterizedType)) {
@@ -58,34 +63,32 @@ public abstract class CsvTypeToken<T> {
         }
 
         this.mType = parameterized.getActualTypeArguments()[0];
-        // 提取 rawClass
-        if (mType instanceof Class) {
-            this.mRawClass = (Class<T>) mType;
-        } else if (mType instanceof ParameterizedType) {
-            this.mRawClass = (Class<T>) ((ParameterizedType) mType).getRawType();
-        } else {
-            this.mRawClass = null;
-        }
+        this.mRawClass = mType instanceof TypeVariable ? null : (Class<T>) Types.getRawType(mType);
     }
 
     /**
-     * 获取完整的泛型 Type（包含泛型参数信息）
+     * 获取完整类型
+     *
+     * @return 包含泛型参数的运行时类型
      */
     public Type getType() {
         return mType;
     }
 
     /**
-     * 获取泛型擦除后的原始 Class
+     * 获取原始类型
      *
-     * <p> 例如 {@code CsvType<List<User>>} 的 rawClass 为 {@code List.class} </p>
+     * @return 类型对应的原始 Class，无法确定时返回 null
      */
+    @Nullable
     public Class<T> getRawClass() {
         return mRawClass;
     }
 
     /**
-     * 判断目标类型是否为 {@link List}
+     * 判断目标类型是否为 List
+     *
+     * @return 类型为 {@link List} 或 {@link ArrayList} 时返回 true
      */
     public boolean isList() {
         if (!(mType instanceof ParameterizedType)) {
@@ -96,22 +99,34 @@ public abstract class CsvTypeToken<T> {
     }
 
     /**
-     * 若目标类型为 {@code List<E>}，返回元素类型 E 的 Class
+     * 获取 List 元素类型
      *
-     * @return 列表元素类型，若不是 List 或元素类型非具体 Class 则返回 null
+     * <p> 返回完整 {@link Type}，保留元素类型中的泛型参数。</p>
+     *
+     * @return 元素类型，不是 List 或无法确定元素类型时返回 null
      */
-    public Class<?> getListElementClass() {
+    public Type getListElementType() {
         if (!isList()) {
             return null;
         }
-        Type[] typeArgs = ((ParameterizedType) mType).getActualTypeArguments();
-        if (typeArgs.length == 0) {
+        Type typeArgument = Types.getTypeArgument(mType, 0);
+        if (typeArgument == null) {
             return null;
         }
-        Type elementType = typeArgs[0];
-        if (elementType instanceof Class) {
-            return (Class<?>) elementType;
+        Type elementType = Types.unwrapWildcard(typeArgument);
+        if (elementType instanceof TypeVariable) {
+            return null;
         }
-        return null;
+        return elementType;
+    }
+
+    /**
+     * 获取 List 元素的原始类型
+     *
+     * @return 元素类型对应的 Class，不是 List 或无法确定时返回 null
+     */
+    public Class<?> getListElementClass() {
+        Type elementType = getListElementType();
+        return elementType == null ? null : Types.getRawType(elementType);
     }
 }

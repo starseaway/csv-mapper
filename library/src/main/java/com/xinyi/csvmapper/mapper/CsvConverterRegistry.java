@@ -9,9 +9,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * CSV 字段级类型转换器注册中心（线程安全）
+ * CSV 字段类型转换器注册中心
  *
- * <p> 复用 {@link CsvFieldMapper} 作为唯一转换抽象，避免创建重复接口 </p>
+ * <p> 管理内置和自定义的 {@link CsvFieldMapper}。</p>
  *
  * @author 新一
  * @date 2026/4/28 17:02
@@ -22,8 +22,6 @@ public final class CsvConverterRegistry {
 
     /**
      * 内置类型转换器表
-     *
-     * <p> 不可变，类加载时初始化，读取零锁开销 </p>
      */
     private static final Map<Class<?>, CsvFieldMapper<?>> sBuiltinConverters;
 
@@ -82,15 +80,13 @@ public final class CsvConverterRegistry {
     }
 
     /**
-     * 执行类型转换
+     * 转换字段值
      *
-     * <p> 查找顺序：自定义转换器优先，其次内置转换器 </p>
+     * <p> 查找顺序：优先使用自定义转换器，其次内置转换器 </p>
      *
      * @param type 目标字段类型
      * @param rawValue 原始字符串值
-     *
-     * @throws NumberFormatException 数值解析失败时抛出
-     * @throws IllegalArgumentException char 类型长度非法时抛出
+     * @return 转换后的值，无可用转换器时返回 null
      */
     @Nullable
     public static Object convert(@NotNull Class<?> type, @Nullable String rawValue) {
@@ -110,19 +106,29 @@ public final class CsvConverterRegistry {
     }
 
     /**
-     * 获取类型默认值（基本类型返回零值，引用类型返回 null）
+     * 判断是否存在类型转换器
      *
-     * <p> 用于处理 CSV 空字段，避免基本类型出现空指针异常 </p>
+     * @param type 目标类型
+     */
+    public static boolean isSupported(@NotNull Class<?> type) {
+        return sCustomConverters.containsKey(type) || sBuiltinConverters.containsKey(type);
+    }
+
+    /**
+     * 获取类型默认值
      *
-     * @param type 字段类型
+     * <p> 基本类型及其包装类型返回对应零值，其他类型返回 null。</p>
+     *
+     * @param type 目标类型
+     * @return 默认值
      */
     @Nullable
     public static Object defaultValue(@NotNull Class<?> type) {
         if (type == byte.class || type == Byte.class) {
-            return 0;
+            return (byte) 0;
         }
         if (type == short.class || type == Short.class) {
-            return 0;
+            return (short) 0;
         }
         if (type == int.class || type == Integer.class) {
             return 0;
@@ -148,13 +154,17 @@ public final class CsvConverterRegistry {
     /**
      * 注册自定义类型转换器
      *
-     * @param type {@link CsvFieldMapper} 的 Class 对象
-     * @throws Exception 实例化失败时抛出
+     * <p> 已注册的类型不会重复创建转换器。</p>
+     *
+     * @param type 转换器类型
+     * @throws Exception 转换器无法实例化时抛出
      */
     public static void register(@NotNull Class<? extends CsvFieldMapper<?>> type) throws Exception {
         if (sCustomConverters.containsKey(type)) {
             return;
         }
-        sCustomConverters.putIfAbsent(type, type.getDeclaredConstructor().newInstance());
+
+        CsvFieldMapper<?> mapper = type.getDeclaredConstructor().newInstance();
+        sCustomConverters.putIfAbsent(type, mapper);
     }
 }

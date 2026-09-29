@@ -10,7 +10,7 @@ import com.xinyi.device.DeviceContext;
 /**
  * 应用 AppApplication
  *
- * @author 杨耿雷
+ * @author 新一
  * @date 2026/4/23 18:56
  */
 public class AppApplication extends Application {

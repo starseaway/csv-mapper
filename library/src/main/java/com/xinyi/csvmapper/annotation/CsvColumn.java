@@ -11,7 +11,7 @@ import java.lang.annotation.Target;
 /**
  * CSV 列绑定注解
  *
- * <p> 标注在 Java 对象的字段上，用于声明该字段与 CSV 列的映射关系 </p>
+ * <p> 标注在 Java 对象的字段上，用于声明该字段与 CSV 列的映射关系。</p>
  *
  * @author 新一
  * @date 2026/4/23 14:52
