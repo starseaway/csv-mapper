@@ -37,3 +37,17 @@ android {
         }
     }
 }
+
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
+                from components.release
+
+                groupId = 'com.github.starseaway'
+                artifactId = 'csv-mapper'
+                version = project.version.toString()
+            }
+        }
+    }
+}
